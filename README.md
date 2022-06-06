@@ -512,7 +512,9 @@ At this point, you can play around to your hearts desire with the dataset in Dat
 
 <details>
     <summary><b>Snowflake</b></summary>
+    
 1. Follow the [source documentation](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html) for full details if you wish. 
+    
 1. Create a private/public key pair for authenticating to your Snowflake account. 
     - In a directory outside of your repo, run the following:
     ```
@@ -548,8 +550,9 @@ At this point, you can play around to your hearts desire with the dataset in Dat
     ```    
     
 1. Configure the SnowflakeSink connector
-    - Review the [connector's limitations](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html#quick-start).
+    - Review the [connector's limitations](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html#quick-start)
     - Fill in the values using the following table:
+    
     | **Property**                      | **Value**                  |
     |-----------------------------------|----------------------------|
     | Topic to read                     | `orders_enriched`          |
