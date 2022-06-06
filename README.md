@@ -78,18 +78,26 @@ Finally, in order to sink data to a data warehouse in real-time, you'll need one
     export SCHEMA_REGISTRY_SECRET="<replace>"
     export SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO="$SCHEMA_REGISTRY_KEY:$SCHEMA_REGISTRY_SECRET"
     export BASIC_AUTH_CREDENTIALS_SOURCE="USER_INFO"
+    
     # AWS Creds for TF
     export AWS_ACCESS_KEY_ID="<replace>"
     export AWS_SECRET_ACCESS_KEY="<replace>"
     export AWS_DEFAULT_REGION="us-east-2" # You can change this, but make sure it's consistent
+    
     # GCP Creds for TF
     export TF_VAR_GCP_PROJECT=""
     export TF_VAR_GCP_CREDENTIALS=""
+    
     # Databricks
     export DATABRICKS_SERVER_HOSTNAME="<replace>"
     export DATABRICKS_HTTP_PATH="<replace>"
     export DATABRICKS_ACCESS_TOKEN="<replace>"
     export DELTA_LAKE_STAGING_BUCKET_NAME="<replace>"
+    
+    # Snowflake
+    SF_PUB_KEY="<replace>"
+    SF_PVT_KEY="<replace>"
+    
     ```
     > **Note:** *The impetus behind the above is so that you can easily `sh env.sh` to have all the values available in the terminal.*
 
@@ -484,10 +492,11 @@ With the data now being captured from the two source databases and transformed i
 1. With the connector provisioned, data should be being sent to a Delta Lake Table in real time. Create the following table so you can query the datasets. 
     ```sql
         CREATE TABLE orders_enriched (order_id STRING, 
-                                    product_id STRING, size STRING, product STRING, department STRING, price STRING,
-                                    id STRING, first_name STRING, last_name STRING, email STRING, phone STRING,
-                                    street_address STRING, state STRING, zip_code STRING, country STRING, country_code STRING,
-                                    partition INT) USING DELTA;
+            product_id STRING, size STRING, product STRING, department STRING, price STRING,
+            id STRING, first_name STRING, last_name STRING, email STRING, phone STRING,
+            street_address STRING, state STRING, zip_code STRING, country STRING, country_code STRING,
+            partition INT) 
+        USING DELTA;
     ```
 
 1. And finally, query the records!
@@ -503,9 +512,71 @@ At this point, you can play around to your hearts desire with the dataset in Dat
 
 <details>
     <summary><b>Snowflake</b></summary>
+1. Follow the [source documentation](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html) for full details if you wish. 
+1. Create a private/public key pair for authenticating to your Snowflake account. 
+    - In a directory outside of your repo, run the following:
+    ```
+    $ openssl genrsa -out snowflake_key.pem 2048
+    $ openssl rsa -in snowflake_key.pem  -pubout -out snowflake_key.pub
+    $ export SF_PUB_KEY=`cat snowflake_key.pub | grep -v PUBLIC | tr -d '\r\n'`
+    $ export SF_PVT_KEY=`cat snowflake_key.pem | grep -v PUBLIC | tr -d '\r\n'`
+    ```
+    - Copy the values of each parameter into your `env.sh` file for easy access
+    
+1. Create a Snowflake user with permissions. Refer to the [source doc](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html#creating-a-user-and-adding-the-public-key) if you need screenshots for guidance.
+    - Login to your Snowflake account and select `Worksheets` from the menu bar.
+    - In the upper-corner *of the Worksheet view*, set your role to `SECURITYADMIN`
+    - The following steps configure the role `kafka_connector` with full permissions on database `RTDW`:
+    ```
+    use role securityadmin;
+    create user confluent RSA_PUBLIC_KEY=<*SF_PUB_KEY*>
+    create role kafka_connector;
+    // Grant database and schema privileges:
+    grant usage on database RTDW to role kafka_connector;
+    grant usage on schema RTDW.PUBLIC to role kafka_connector;
+    grant create table on schema RTDW.PUBLIC to role kafka_connector;
+    grant create stage on schema RTDW.PUBLIC to role kafka_connector;
+    grant create pipe on schema RTDW.PUBLIC to role kafka_connector;
 
-Coming Soon!
+    // Grant this role to the `confluent` user and make it the user's default:
+    grant role kafka_connector to user confluent;
+    alter user confluent set default_role=kafka_connector;    
+    ```
+1. To review the grants, enter:
+    ```
+    show grants to role kafka_connector; 
+    ```    
+    
+1. Configure the SnowflakeSink connector
+    - Review the [connector's limitations](https://docs.confluent.io/cloud/current/connectors/cc-snowflake-sink.html#quick-start).
+    - Fill in the values using the following table:
+    | **Property**                      | **Value**                  |
+    |-----------------------------------|----------------------------|
+    | Topic to read                     | `orders_enriched`          |
+    | Input Kafka record value format   | `JSON_SR`                  |
+    | Input Kafka record hey format     | `JSON`                     |
+    | Kafka cluster authentication mode | `KAFKA_API_KEY`            |
+    | Kafka API Key                     | from `env.sh`              |
+    | Kafka API Secret                  | from `env.sh`              |
+    | Connection URL                    | for Snowflake account      |
+    | Connection user name              | `confluent`                |
+    | Private key                       | `SF_PVT_KEY` in `env.sh`.  |
+    | Database name                     | `RTDW`                     |
+    | Schema name                       | `PUBLIC`                   |
+    | Topic to tables mapping           | `orders_enriched:orders`   |
+    | Tasks                             | `1`                        |
 
+1. Once provisioning succeeds, the connector reads the `orders_enriched` topic, creates the Snowflake table `orders`, and starts populating it immediately. It may however take a few minutes for Snowflake to read the records from object storage and create the table.
+
+1. Run the following commands to make your warehouse active and assume the appropriate role. You will then see a few records returned in JSON format.
+    ```
+    use warehouse <replace>;
+    use role kafka_connector;
+    SELECT * FROM rtdw_mfe.public.orders_enriched limit 100;
+    ```
+
+ 1. If you want to flatten your data in Snowflake, use [Snowflake's documentation](https://docs.snowflake.com/en/user-guide/json-basics-tutorial-query.html).
+    
 </details>
 
 <br>
