@@ -228,7 +228,7 @@ Coming Soon!
     | Tables included                   | customers.customers, customers.demographics |
     | Output Kafka record value format  | JSON_SR                                     |
     | After-state only                  | false                                       |
-    | Output Kafka record key format    | JSON_SR                                     |
+    | Output Kafka record key format    | JSON                                        |
     | Tasks                             | 1                                           |
 
 Give the connectors a chance to provision, and troubleshoot any failures that occur. Once provisioned, the connector should begin capturing a stream of change data from a few tables in each database. 
@@ -259,7 +259,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
     ```sql
         CREATE STREAM customers_flattened WITH (
                 KAFKA_TOPIC='customers_flattened',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT
                 after->id,
@@ -276,7 +276,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
     ```sql
         CREATE TABLE customers WITH (
                 KAFKA_TOPIC='customers',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT
                 id,
@@ -298,14 +298,14 @@ With the connectors provisioned, it's time to transform and join our streams of 
             op VARCHAR
         ) WITH (
             KAFKA_TOPIC='mysql.customers.demographics',
-            KEY_FORMAT='JSON_SR',
+            KEY_FORMAT='JSON',
             VALUE_FORMAT='JSON_SR'
         );
     ```
     ```sql
         CREATE STREAM demographics_flattened WITH (
                 KAFKA_TOPIC='demographics_flattened',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT
                 after->id,
@@ -323,7 +323,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
     ```sql
         CREATE TABLE demographics WITH (
                 KAFKA_TOPIC='demographics',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT
                 id, 
@@ -341,7 +341,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
     ```sql
         CREATE TABLE customers_enriched WITH (
                 KAFKA_TOPIC='customers_enriched',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT 
                 c.id id, c.first_name first_name, c.last_name last_name, c.email email, c.phone phone,
@@ -388,7 +388,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
     ```sql 
         CREATE TABLE products WITH (
                 KAFKA_TOPIC='products',
-                KEY_FORMAT='JSON_SR',
+                KEY_FORMAT='JSON',
                 VALUE_FORMAT='JSON_SR'
             ) AS SELECT 
                 product_id,
