@@ -22,7 +22,7 @@ This repository is meant to either be presented as a walk through by a member of
 ## Prerequisites
 
 First thing you'll need is a Confluent Cloud account. If you already have one, you can skip this, otherwise, you can try this completely free of charge and without adding payment details. The following link will bring you to a sign up page to get started. 
-- [Get STarted with Confluent Cloud for Free](https://www.confluent.io/confluent-cloud/tryfree/).
+- [Get Started with Confluent Cloud for Free](https://www.confluent.io/confluent-cloud/tryfree/).
 
 As you can expect, there are some tools that will be required to be successful with this lab. Please have the following in order to take full advantage of this workshop/lab guide.
 - Docker
@@ -39,11 +39,12 @@ In addition to the necessary tools, this lab will use those tools to create reso
 - Azure
     - TBD.
 
-Finally, in order to sink data to a data warehouse in real-time, you'll need one of the following data warehousing technologies and the stated permissions. It is expected that you'll either have one of these two solutions already to use, or to follow the included documentation to have it provisioned to work with Confluent Cloud.
+To sink streaming data to your data warehouse, use Snowflake or Databnricks. It is expected that you'll either have one of these accounts ready to use, then follow the steps below to provision the appropriate managed connector.
 - Snowflake
-    - TBD.
+    - Your Snowflake account must run in the same region as your Confluent Cloud environment
+    - Steps for integrating with Confluent Cloud are provided below
 - Databricks *(AWS only)*
-    - Databricks running **within the same region that you will deploy your Kafka Cluster**.
+    - Databricks must run in the same region as your Confluent Cloud environment
     - An S3 bucket in which the Delta Lake Sink Connector can stage data (this is explained in the link below).
     - Please review and walk through the following documentation to verify the appropriate setup within AWS and Databricks.
         - [Set Up Databricks Delta Lake](https://docs.confluent.io/cloud/current/connectors/cc-databricks-delta-lake-sink/databricks-aws-setup.html).
@@ -56,18 +57,13 @@ Finally, in order to sink data to a data warehouse in real-time, you'll need one
 
 1. Clone and enter this repo.
     ```bash
-    git clone https://github.com/zacharydhamilton/realtime-datawarehousing
-    ```
-    ```bash
+    git clone https://github.com/iincubate-or-intubate/realtime-datawarehousing
     cd realtime-datawarehousing
     ```
-1. Create a new "clipboard" file in the directory. Since a variety of credentials will be required, a place to keep track of them will be necessary. The following is the recommended approach. 
-    ```bash 
-    touch env.sh
-    ```
-    ```bash
-    # Contents to create in env.sh ...
 
+1. Create a file to manage all the values you'll need through the setup. 
+    ```bash 
+    cat << EOF > env.sh
     # Confluent Creds
     export BOOTSTRAP_SERVERS="<replace>"
     export KAFKA_KEY="<replace>"
@@ -97,9 +93,9 @@ Finally, in order to sink data to a data warehouse in real-time, you'll need one
     # Snowflake
     SF_PUB_KEY="<replace>"
     SF_PVT_KEY="<replace>"
-    
+    EOF
     ```
-    > **Note:** *The impetus behind the above is so that you can easily `sh env.sh` to have all the values available in the terminal.*
+    > **Note:** *Run `source env.sh` at any time to update these values in your terminal session. Do NOT commit this file to a GitHub repo.*
 
 1. Create a cluster in Confluent Cloud. The recommended cluster type for this workshop/lab is either Basic/Standard.
     - [Create a Cluster in Confluent Cloud](https://docs.confluent.io/cloud/current/clusters/create-cluster.html).
@@ -140,18 +136,18 @@ The next steps will vary between the various cloud providers. Use the following 
     ```
 1. Create the Terraform plan.
     ```bash
-    terraform plan
+    terraform plan -out=myplan
     ```
 1. Apply the plan and create the infrastructure.
     ```bash
-    terraform apply
+    terraform apply myplan
     ```
-    > **Note:** *To see the inventory of what is created by this command, check out the configuration file [here](https://github.com/zacharydhamilton/realtime-datawarehousing/tree/main/terraform/aws).*
 
-The Terraform configuration will create two outputs. These outputs are the public endpoints of the Postgres and Mysql instances that were created. Keep these handy as you will need them in the connector configuration steps. 
+    > **Note:** *To review what is created by this command, read the configuration file [here](https://github.com/incubate-or-intubate/realtime-datawarehousing/tree/main/terraform/aws/main.tf).*
+
+The `terraform apply` command will print the public IP endpoints of the Postgres and Mysql instances it creates. You will need these for the connector configuration later. 
 
 </details>
-
 <br>
 
 <details>
@@ -167,19 +163,17 @@ The Terraform configuration will create two outputs. These outputs are the publi
     ```
 1. Create the Terraform plan.
     ```bash
-    terraform plan
+    terraform plan --out=myplan
     ```
 1. Apply the plan and create the infrastructure.
     ```bash
-    terraform apply
+    terraform apply myplan
     ```
-    > **Note:** *To see the inventory of what is created by this command, check out the configuration file [here](https://github.com/zacharydhamilton/realtime-datawarehousing/tree/main/terraform/gcp).*
+    > **Note:** *To see what gets created by this command, check out the [`main.tf` file here](https://github.com/incubate-or-intubate/realtime-datawarehousing/tree/main/terraform/gcp).*
 
-The Terraform configuration will create two outputs. These outputs are the public endpoints of the Postgres and Mysql instances that were created. Keep these handy as you will need them in the connector configuration steps. 
-
+The `terraform apply` command will print the public endpoints of the Postgres and Mysql instances that are created. You will need thesem to vonfigure the connector. 
 
 </details>
-
 <br>
 
 <details>
@@ -195,53 +189,54 @@ Coming Soon!
 
 ### Kafka Connectors
 
-1. Before creating the connectors, you'll need to create the topics they'll write data to. The following list of topics should each be created with **1 partition each** for simplicity in the **Topics** menu.
+1. Create the topics that your connectors will write to. Using the Topics menu, create each with **1 partition** only.
+
     - `postgres.products.products`
     - `postgres.products.orders`
     - `mysql.customers.customers`
     - `mysql.customers.demographics`
 
-1. Once the topics have been created, start by creating the Debezium Postgres CDC Source Connector. Select **Data integration > Connectors** from the left-hand menu, then search for the connector. When you find its tile, select it and configure it with the following settings, then launch it. 
+1. Provision the Debezium Postgres CDC Source Connector. Select **Data integration > Connectors** from the left-hand menu, then search for it.  Select the tile, configure it with the following settings, then launch it: 
 
     | **Property**                      | **Value**                          |
     |-----------------------------------|------------------------------------|
-    | Kafka Cluster Authentication mode | KAFKA_API_KEY                      |
-    | Kafka API Key                     | *copy from clipboard file*         |
-    | Kafka API Secret                  | *copy from clipboard file*         |
-    | Database hostname                 | *derived from Terraform output*    |
-    | Database port                     | 5432                               |
-    | Database username                 | postgres                           |
-    | Database password                 | rt-dwh-c0nflu3nt!                  |
-    | Database name                     | postgres                           |
-    | Database server name              | postgres                           |
-    | Tables included                   | products.products, products.orders |
-    | Output Kafka record value format  | JSON_SR                            |
-    | Tasks                             | 1                                  |
+    | Kafka Cluster Authentication mode | `KAFKA_API_KEY`                    |
+    | Kafka API Key                     | *copy from `env.sh`*               |
+    | Kafka API Secret                  | *copy from `env.sh`*               |
+    | Database hostname                 | *get from Terraform output*        |
+    | Database port                     | `5432`                             |
+    | Database username                 | `postgres`                         |
+    | Database password                 | `rt-dwh-c0nflu3nt!`                |
+    | Database name                     | `postgres`                         |
+    | Database server name              | `postgres`                         |
+    | Tables included                   | `products.products`, `products.orders` |
+    | Output Kafka record value format  | `JSON_SR`                            |
+    | Tasks                             | `1`                                  |
 
-    The connector can take a minute or two to provision. While it is, you can create the next connector. 
+    You can create the next connector while this one is provisioning.
 
-1. Create the Debezium Mysql CDC Source Connect by searching for it as you did above. When you find it, configure it with the following settings, then launch it. 
+1. Create the Debezium Mysql CDC Source Connect by searching for it and selecting its tile as you did above. Configure it with the following settings, then launch it. 
 
     | **Property**                      | **Value**                                   |
     |-----------------------------------|---------------------------------------------|
-    | Kafka Cluster Authentication mode | KAFKA_API_KEY                               |
-    | Kafka API Key                     | *copy from clipboard file*                  |
-    | Kafka API Secret                  | *copy from clipboard file*                  |
-    | Database hostname                 | *derived from Terraform output*             |
-    | Database port                     | 3306                                        |
-    | Database username                 | debezium                                    |
-    | Database password                 | rt-dwh-c0nflu3nt!                           |
-    | Database server name              | mysql                                       |
-    | Databases included                | customers                                   |
-    | Tables included                   | customers.customers, customers.demographics |
-    | Output Kafka record value format  | JSON_SR                                     |
-    | After-state only                  | false                                       |
-    | Output Kafka record key format    | JSON                                        |
-    | Tasks                             | 1                                           |
+    | Kafka Cluster Authentication mode | `KAFKA_API_KEY`                             |
+    | Kafka API Key                     | *copy from `env.sh`*                        |
+    | Kafka API Secret                  | *copy from `env.sh`*                        |
+    | Database hostname                 | *get from Terraform output*                 |
+    | Database port                     | `3306`                                      |
+    | Database username                 | `debezium`                                  |
+    | Database password                 | `rt-dwh-c0nflu3nt!`                         |
+    | Database server name              | `mysql`                                     |
+    | Databases included                | `customers`                                 |
+    | Tables included                   | `customers.customers`, `customers.demographics` |
+    | Output Kafka record value format  | `JSON_SR`                                   |
+    | After-state only                  | `false`                                     |
+    | Output Kafka record key format    | `JSON`                                      |
+    | Tasks                             | `1`                                         |
 
-Give the connectors a chance to provision, and troubleshoot any failures that occur. Once provisioned, the connector should begin capturing a stream of change data from a few tables in each database. 
+Let the connectors provision and/or troubleshoot any failures that occur. Each connector will begin capturing data automatically. 
 
-> **Note:** *Only the table containing orders will have a real time stream of records. The other will have their records produced to topics as part of their initial snapshot, then nothing else will happen. Therefore, if you see low/no throughput to the corresponding topics for those tables, this is why.*
+> **Note:** *Only the `products.orders` table emits an ongoing stream of records. The others have their records produced to topics as part of their initial snapshot, then nothing else happens. You will see low/no throughput to the corresponding topics over time.*
 
 <br>
 
@@ -249,9 +244,9 @@ Give the connectors a chance to provision, and troubleshoot any failures that oc
 
 ### Ksql 
 
-With the connectors provisioned, it's time to transform and join our streams of data in-flight with Ksql. If your cluster is still provisioning, give it more time before continuing. 
+With the connectors provisioned, it's time to transform and join data in-flight using Ksql. Wait for your topics to populate before continuing. 
 
-1. Use the following statements to consume the `customers` data and flatten it for ease of use. 
+1. Use the following statements to consume the `customers` data and flatten it. 
     ```sql
         CREATE STREAM customers_structured (
             struct_key STRUCT<id VARCHAR> KEY,
@@ -260,7 +255,7 @@ With the connectors provisioned, it's time to transform and join our streams of 
             op VARCHAR
         ) WITH (
             KAFKA_TOPIC='mysql.customers.customers',
-            KEY_FORMAT='JSON_SR',
+            KEY_FORMAT='JSON',
             VALUE_FORMAT='JSON_SR'
         );
     ```
@@ -572,13 +567,15 @@ At this point, you can play around to your hearts desire with the dataset in Dat
 1. Once provisioning succeeds, the connector reads the `orders_enriched` topic, creates the Snowflake table `orders`, and starts populating it immediately. It may however take a few minutes for Snowflake to read the records from object storage and create the table.
 
 1. Run the following commands to make your warehouse active and assume the appropriate role. You will then see a few records returned in JSON format.
-    ```
+    ```sql
     use warehouse <replace>;
     use role kafka_connector;
-    SELECT * FROM rtdw_mfe.public.orders_enriched limit 100;
+    SELECT record_content FROM rtdw.public.orders limit 100;
     ```
 
- 1. If you want to flatten your data in Snowflake, use [Snowflake's documentation](https://docs.snowflake.com/en/user-guide/json-basics-tutorial-query.html).
+ 1. You can flatten data in Snowflake if you wish. Use [Snowflake's documentation](https://docs.snowflake.com/en/user-guide/json-basics-tutorial-query.html). You can also query JSON data directly in Snowflake by naming the column and specifying columns of interest. For example:
+    ````sql
+    SELECT RECORD_CONTENT:email from rtdw.public.orders limit 100;
     
 </details>
 
@@ -599,10 +596,7 @@ During this lab you created the following resources, be sure to remove them when
 - Kafka Cluster
 
 ### Terraform
-To remove everything provisioned by Terraform in either AWS, GCP, or Azure, use the following command.
-    ```bash
-    terraform destroy
-    ```
+To remove everything provisioned by Terraform in either AWS, GCP, or Azure, use `terraform destroy`
 
 ### Databricks and Snowflake
 If you created instances of either Databricks and Snowflake solely for the purpose of this lab, remove them!
