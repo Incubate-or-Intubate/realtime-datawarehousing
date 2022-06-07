@@ -15,39 +15,37 @@ The core Confluent Cloud components that will be used to accomplish this will be
 - KsqlDB
 - Schema Registry
 
-This repository is meant to either be presented as a walk through by a member of the Confluent team, used as a demonstration without guided hands-on, or as a collection of artifacts that you can build on your own. All of the code used is available within the repository. 
+You can use this repository to create your own demo. All of the steps and code needed are included. If something's missing, please let us know! 
 
 ***
 
 ## Prerequisites
 
-First thing you'll need is a Confluent Cloud account. If you already have one, you can skip this, otherwise, you can try this completely free of charge and without adding payment details. The following link will bring you to a sign up page to get started. 
-- [Get Started with Confluent Cloud for Free](https://www.confluent.io/confluent-cloud/tryfree/).
+Get a Confluent Cloud account if you don't have one. New accounts start with $400 in credits and do not require a credit card. [Get Started with Confluent Cloud for Free](https://www.confluent.io/confluent-cloud/tryfree/).
 
-As you can expect, there are some tools that will be required to be successful with this lab. Please have the following in order to take full advantage of this workshop/lab guide.
+You'll need a couple tools that make setup go a lot faster. Install these first. 
+- `git`
 - Docker
 - Terraform
+    - Special instructions for Apple M1 users are [here](./terraform/running-terraform-on-M1.md)
 
-In addition to the necessary tools, this lab will use those tools to create resources in the cloud provider of your choice (what will be created will be explicitly stated in steps where you create it). These resources are used to create the end-to-end flow of data. The following states necessary credentials for each respective cloud provider.
+This repo uses Docker and Terraform to deploy your source databases to a cloud provider. What you need for this tutorial varies with each provider.
 - AWS
-    - A user account with an API Key and Secret Key.
-    - Appropriate permissions in a non-prod environment to create resources.
+    - A user account (use a testing environment) with permissions to create resources
+    - An API Key and Secret to access the account from Confluent Cloud
 - GCP 
-    - A non-prod project within which resources can be created.
-    - A user account with a JSON Key file.
-    - Appropriate permissions within the non-prod project to create resources.
+    - A test project in which you can create resources
+    - A user account with a JSON Key file and permission to create resources
 - Azure
-    - TBD.
+    - Coming in a future version
 
-To sink streaming data to your data warehouse, use Snowflake or Databnricks. It is expected that you'll either have one of these accounts ready to use, then follow the steps below to provision the appropriate managed connector.
+To sink streaming data to your warehouse, we support Snowflake and Databricks. This repo assumes you can have set up either account and are familiar with the basics of using them.
 - Snowflake
-    - Your Snowflake account must run in the same region as your Confluent Cloud environment
-    - Steps for integrating with Confluent Cloud are provided below
+    - Your account must reside in the same region as your Confluent Cloud environment
 - Databricks *(AWS only)*
-    - Databricks must run in the same region as your Confluent Cloud environment
-    - An S3 bucket in which the Delta Lake Sink Connector can stage data (this is explained in the link below).
-    - Please review and walk through the following documentation to verify the appropriate setup within AWS and Databricks.
-        - [Set Up Databricks Delta Lake](https://docs.confluent.io/cloud/current/connectors/cc-databricks-delta-lake-sink/databricks-aws-setup.html).
+    - Your account must reside in the same region as your Confluent Cloud environment
+    - You'll need an S3 bucket the Delta Lake Sink Connector can use to stage data (detailed in the link below)
+    - Review [Databricks' documentation to ensure proper setup](https://docs.confluent.io/cloud/current/connectors/cc-databricks-delta-lake-sink/databricks-aws-setup.html)
 
 ***
 
@@ -97,36 +95,32 @@ To sink streaming data to your data warehouse, use Snowflake or Databnricks. It 
     ```
     > **Note:** *Run `source env.sh` at any time to update these values in your terminal session. Do NOT commit this file to a GitHub repo.*
 
-1. Create a cluster in Confluent Cloud. The recommended cluster type for this workshop/lab is either Basic/Standard.
+1. Create a cluster in Confluent Cloud. The Basic cluster type will suffice for this tutorial.
     - [Create a Cluster in Confluent Cloud](https://docs.confluent.io/cloud/current/clusters/create-cluster.html).
-    - Once the cluster is created, select its tile if you haven't, then select **Cluster overview > Cluster settings**. On the corresponding page, copy the value for **Bootstrap server** and paste it into your clipboard file under `BOOTSTRAP_SERVERS`. 
+    - Select **Cluster overview > Cluster settings**. Paste the value for **Bootstrap server** into your `env.sh` file under `BOOTSTRAP_SERVERS`. 
 
-1. Create an API Key pair for for authentication to the cluster.
-    - [Create API Keys](https://docs.confluent.io/cloud/current/access-management/authenticate/api-keys/api-keys.html#ccloud-api-keys).
-    - Once the keys have been generated, copy the values of the key and secret into the values of `KAFKA_KEY` and `KAFKA_SECRET` in your clipboard file respectively. 
+1. [Create an API Key pair](https://docs.confluent.io/cloud/current/access-management/authenticate/api-keys/api-keys.html#ccloud-api-keys) for authenticating to the cluster.
+    - Paste the values for the key and secret into `KAFKA_KEY` and `KAFKA_SECRET` in your `env.sh` file. 
 
-1. Enable a Schema Registry. If you already have Schema Registry enabled for your environment, you can skip this step.
-    - [Enable Schema Registry](https://docs.confluent.io/cloud/current/get-started/schema-registry.html#enable-sr-for-ccloud).
-    - Once Schema Registry is enabled for the environment, select the **Schema Registry** tab for the environment to find the **API endpoint**. Copy the API endpoint into your clipboard file under `SCHEMA_REGISTRY_URL`.
+1. [Enable Schema Registry](https://docs.confluent.io/cloud/current/get-started/schema-registry.html#enable-sr-for-ccloud)
+    - Select the **Schema Registry** tab in your environment and locate **API endpoint**. Paste the endpoint value to your `env.sh` file under `SCHEMA_REGISTRY_URL`.
 
-1. Create an API Key for authentication to Schema Registry. 
-    - [Create Schema Registry API Keys](https://docs.confluent.io/cloud/current/get-started/schema-registry.html#create-an-api-key-for-ccloud-sr).
-    - Once the Schema Registry keys have been generated, copy the values of the key and secret into the values of `SCHEMA_REGISTRY_KEY` and `SCHEMA_REGISTRY_SECRET` in your clipboard file respectively. 
+1. [Create an API Key for authenticating to Schema Registry](https://docs.confluent.io/cloud/current/get-started/schema-registry.html#create-an-api-key-for-ccloud-sr). 
+    - Paste the key and secret into your `env.sh` file under `SCHEMA_REGISTRY_KEY` and `SCHEMA_REGISTRY_SECRET`. 
 
-1. Create a ksqlDB cluster in Confluent Cloud. 
-    - [Create a ksqlDB Cluster](https://docs.confluent.io/cloud/current/get-started/ksql.html#create-a-ksql-cloud-cluster-in-ccloud).
+1. [Create a ksqlDB cluster](https://docs.confluent.io/cloud/current/get-started/ksql.html#create-a-ksql-cloud-cluster-in-ccloud).
+    - Allow some time for this cluster to provision. This is a good opportunity to stand up and stretch.
 
 ***
 
-### Build some cloud infrastructure
+### Build your cloud infrastructure
 
-The next steps will vary between the various cloud providers. Use the following expandable sections to follow the relevant directions for the cloud provider of your choice. 
-> **Note:** *While it might be obvious, it's worth mentioning that whatever cloud provider you created you Kafka cluster on should be the same cloud provider you use in the following steps.*
+The next steps vary slightly for each cloud provider. Expand the appropriate section below for directions. Remember to specify the same region as your sink target!
 
 <details>
     <summary><b>AWS</b></summary>
 
-1. Navigate to the AWS directory for Terraform.
+1. Navigate to the repo's AWS directory.
     ```bash
     cd terraform/aws
     ```
@@ -138,14 +132,14 @@ The next steps will vary between the various cloud providers. Use the following 
     ```bash
     terraform plan -out=myplan
     ```
-1. Apply the plan and create the infrastructure.
+1. Apply the plan to create the infrastructure.
     ```bash
     terraform apply myplan
     ```
 
-    > **Note:** *To review what is created by this command, read the configuration file [here](https://github.com/incubate-or-intubate/realtime-datawarehousing/tree/main/terraform/aws/main.tf).*
+    > **Note:** *Read the `main.tf` configuration file [to see what will be created](./terraform/aws/main.tf).* 
 
-The `terraform apply` command will print the public IP endpoints of the Postgres and Mysql instances it creates. You will need these for the connector configuration later. 
+The `terraform apply` command will print the public IP addresses of the host EC2 instances for your Postgres and Mysql services. You'll need these later to configuring the source connectors. 
 
 </details>
 <br>
@@ -169,40 +163,37 @@ The `terraform apply` command will print the public IP endpoints of the Postgres
     ```bash
     terraform apply myplan
     ```
-    > **Note:** *To see what gets created by this command, check out the [`main.tf` file here](https://github.com/incubate-or-intubate/realtime-datawarehousing/tree/main/terraform/gcp).*
+    > **Note:** *To see what resources are created by this command, see the [`main.tf` file here](https://github.com/incubate-or-intubate/realtime-datawarehousing/tree/main/terraform/gcp).
 
-The `terraform apply` command will print the public endpoints of the Postgres and Mysql instances that are created. You will need thesem to vonfigure the connector. 
+The `terraform apply` command will print the public IP addresses for the Postgres and Mysql instances it creates. You will need these to configure the connectors. 
 
 </details>
 <br>
 
 <details>
     <summary><b>Azure</b></summary>
-
 Coming Soon!
-
 </details>
-
 <br>
 
 ***
 
 ### Kafka Connectors
 
-1. Create the topics that your connectors will write to. Using the Topics menu, create each with **1 partition** only.
+1. Create the topics that your source connectors need. Using the Topics menu, configure each onw with **1 partition** only.
 
     - `postgres.products.products`
     - `postgres.products.orders`
     - `mysql.customers.customers`
     - `mysql.customers.demographics`
 
-1. Provision the Debezium Postgres CDC Source Connector. Select **Data integration > Connectors** from the left-hand menu, then search for it.  Select the tile, configure it with the following settings, then launch it: 
+1. Provision the Debezium Postgres CDC Source Connector. Select **Data integration > Connectors** from the left-hand menu, then search for the connector. Select the tile. Use the table below to configure it: 
 
     | **Property**                      | **Value**                          |
     |-----------------------------------|------------------------------------|
     | Kafka Cluster Authentication mode | `KAFKA_API_KEY`                    |
-    | Kafka API Key                     | *copy from `env.sh`*               |
-    | Kafka API Secret                  | *copy from `env.sh`*               |
+    | Kafka API Key                     | *get from `env.sh`*                |
+    | Kafka API Secret                  | *get from `env.sh`*                |
     | Database hostname                 | *get from Terraform output*        |
     | Database port                     | `5432`                             |
     | Database username                 | `postgres`                         |
@@ -213,9 +204,9 @@ Coming Soon!
     | Output Kafka record value format  | `JSON_SR`                            |
     | Tasks                             | `1`                                  |
 
-    You can create the next connector while this one is provisioning.
+    Launch the connector. You can start on the MySQL connector while this one provisions.
 
-1. Create the Debezium Mysql CDC Source Connect by searching for it and selecting its tile as you did above. Configure it with the following settings, then launch it. 
+1. Create the Debezium Mysql CDC Source Connect by searching for it and selecting its tile. Configure it using the following settings. 
 
     | **Property**                      | **Value**                                   |
     |-----------------------------------|---------------------------------------------|
@@ -234,9 +225,9 @@ Coming Soon!
     | Output Kafka record key format    | `JSON`                                      |
     | Tasks                             | `1`                                         |
 
-Let the connectors provision and/or troubleshoot any failures that occur. Each connector will begin capturing data automatically. 
+Launch the connector. Once both are fully provisioned, check for and troubleshoot any failures that occur. Properly configured, each connector begins reading data automatically. 
 
-> **Note:** *Only the `products.orders` table emits an ongoing stream of records. The others have their records produced to topics as part of their initial snapshot, then nothing else happens. You will see low/no throughput to the corresponding topics over time.*
+> **Note:** *Only the `products.orders` table emits an ongoing stream of records. The others have their records produced to their topics from an initial snapshot only. After that, they do nothing more. The connector throughput will accordingly drop to zero over time.*
 
 <br>
 
@@ -244,9 +235,9 @@ Let the connectors provision and/or troubleshoot any failures that occur. Each c
 
 ### Ksql 
 
-With the connectors provisioned, it's time to transform and join data in-flight using Ksql. Wait for your topics to populate before continuing. 
+If all is well, it's time to transform and join your data using Ksql. Ensure your topics are receiving records first.
 
-1. Use the following statements to consume the `customers` data and flatten it. 
+1. Use the following statements to consume `customers` records and flatten them. Note the `before` and `after` arrays representing CDC data.
     ```sql
         CREATE STREAM customers_structured (
             struct_key STRUCT<id VARCHAR> KEY,
@@ -275,7 +266,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. With the `customers` data flattened, it can be easily aggregated into a Ksql table to retain the most up-to-date values by customer.
+1. With the `customers` records flattened, you can pass them into a Ksql table that updates the latest value provided for each field.
     ```sql
         CREATE TABLE customers WITH (
                 KAFKA_TOPIC='customers',
@@ -292,7 +283,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. Next, do what is effectively the same thing, this time for the `demographics` data. 
+1. Repeat the process above for the `demographics` table. 
     ```sql
         CREATE STREAM demographics_structured (
             struct_key STRUCT<id VARCHAR> KEY,
@@ -322,7 +313,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. And now create a Ksql table to retain the most up-to-date values by demographics. 
+1. Create a Ksql table to present the the latest values by demographics. 
     ```sql
         CREATE TABLE demographics WITH (
                 KAFKA_TOPIC='demographics',
@@ -340,7 +331,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. With the two tables `customers` and `demographics` created, they can be joined together to create what will effectively be an always up-to-date view of the customer and demographic data combined together by the customer ID. 
+1. You can now join `customers` and `demographics` by customer ID to create am up-to-the-second view of each record. 
     ```sql
         CREATE TABLE customers_enriched WITH (
                 KAFKA_TOPIC='customers_enriched',
@@ -354,7 +345,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. Next, use the following statements to capture the `products` data and re-key it.
+1. Next you will capture your `products` records and convert the record key to a simpler value.
     ```sql
         CREATE STREAM products_composite (
             struct_key STRUCT<product_id VARCHAR> KEY,
@@ -387,7 +378,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. Just like you did with the customer data, create a Ksql table to retain the most up-to-date values for the `products` data. 
+1. Create a Ksql table to show the most up-to-date values for each `products` record. 
     ```sql 
         CREATE TABLE products WITH (
                 KAFKA_TOPIC='products',
@@ -405,7 +396,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. Next, replicate what you did above with the `orders` data. 
+1. Follow the same process using the `orders` data. 
     ```sql
         CREATE STREAM orders_composite (
             order_key STRUCT<`order_id` VARCHAR> KEY,
@@ -434,7 +425,7 @@ With the connectors provisioned, it's time to transform and join data in-flight 
         EMIT CHANGES;
     ```
 
-1. Finally, create a Ksql stream to join **all** the tables together to enrich the order data in real time. 
+1. You're now readt to create a Ksql stream that joins these tables together to create enriched order data in real time. 
     ```sql
         CREATE STREAM orders_enriched WITH (
                 KAFKA_TOPIC='orders_enriched',
@@ -451,40 +442,40 @@ With the connectors provisioned, it's time to transform and join data in-flight 
             PARTITION BY o.order_key  
         EMIT CHANGES;  
     ```
-    > **Note:** *You used a stream rather than a table above since you'll use this new stream of enriched data to hydrate your data warehouse in a future step. 
+    > **Note:** *We need a stream to 'hydrate' our data warehouse once the sink connector is set up. 
 
-At this point, you should have a functioning Ksql topology. To see the flow laid out graphically, select **Flow** from the tabs in the Ksql cluster.
+Verify that you have a working Ksql topology. You can inspect it by selecting the **Flow** tab in the Ksql cluster. Check to see that records are populating the `orders_enriched` kstream.
 
 ***
 
 ### Data Warehouse Connectors
 
-With the data now being captured from the two source databases and transformed in real-time, you're ready to sink the data to your data warehouse with another connector. Expand the section below corresponding to the data warehousing technology of your choice, and follow the directions to set it up. 
-
-> **Note:** *If you skipped over the prerequisites, you'll need to address those to be able to do this part of the lab.* 
+You're now ready to sink data to your chosen warehouse. Expand the appropriate section and follow the directions to set up your connector.  
 
 <details>
     <summary><b>Databricks</b></summary>
 
-1. Start by locating the Databricks cluster's JDBC/ODBC connection details. After selecting your cluster, expand the section titled **Advanced**, and then select the **JDBC/ODBC** tab. On the following page, select and copy the values for **Server Hostname** and **HTTP Path** to your clipboard file. 
-    > **Note:** *If you don't have an S3 bucket, an AWS Key/secret, or the Databricks Access token described from doing the prerequisites, create or gather these values. 
+1. Locate your JDBC/ODBC details. Select your cluster. Expand the **Advanced** section and select the **JDBC/ODBC** tab. Paste the values for **Server Hostname** and **HTTP Path** to your `env.sh` file under `DATABRICKS_SERVER_HOSTNAME` and `DATABRICKS_HTTP_PATH`.
+  
+    > **Note:** *If you don't yet have an S3 bucket, AWS Key/secret, or Databricks Access token as described in the Prerequisites, create and/or gather them now. 
 
-1. Start by creating the Databricks Delta Lake Sink Connector. Select **Data integration > Connectors** from the left-hand menu, then search for the connector. When you find its tile, select it and configure it with the following settings, then launch it.
+1. Create your Databricks Delta Lake Sink Connector. Select **Data integration > Connectors** from the left-hand menu and search for the connector. Select its tile and configure it using the following settings.
+    
     | **Property**                      | **Value**                  |
     |-----------------------------------|----------------------------|
     | Topics                            | `orders_enriched`          |
     | Kafka Cluster Authentication mode | KAFKA_API_KEY              |
-    | Kafka API Key                     | *copy from clipboard file* |
-    | Kafka API Secret                  | *copy from clipboard file* |
-    | Delta Lake Host Name              | *copy from clipboard file* |
-    | Delta Lake HTTP Path              | *copy from clipboard file* |
-    | Delta Lake Token                  | *from the prerequisites*   |
-    | Staging S3 Access Key ID          | *from the prerequisites*   |
-    | Staging S3 Secret Access Key      | *from the prerequisites*   |
-    | S3 Staging Bucket Name            | *from the prerequisites*   |
+    | Kafka API Key                     | *copy from `env.sh` file*  |
+    | Kafka API Secret                  | *copy from `env.sh` file*  |
+    | Delta Lake Host Name              | *copy from `env.sh` file*  |
+    | Delta Lake HTTP Path              | *copy from `env.sh` file*  |
+    | Delta Lake Token                  | *from Databricks setup*    |
+    | Staging S3 Access Key ID          | *from Databricks setup*    |
+    | Staging S3 Secret Access Key      | *from Databricks setup*    |
+    | S3 Staging Bucket Name            | *from Databricks setup*    |
     | Tasks                             | 1                          |
 
-1. With the connector provisioned, data should be being sent to a Delta Lake Table in real time. Create the following table so you can query the datasets. 
+1. Launch the connector. Once provisioned correctly, it will write data to a Delta Lake Table automatically. Create the following table in Databricks. 
     ```sql
         CREATE TABLE orders_enriched (order_id STRING, 
             product_id STRING, size STRING, product STRING, department STRING, price STRING,
@@ -494,15 +485,14 @@ With the data now being captured from the two source databases and transformed i
         USING DELTA;
     ```
 
-1. And finally, query the records!
+1. Et voila! Now query yours records
     ```sql 
      SELECT * FROM default.orders_enriched;
     ```
 
-At this point, you can play around to your hearts desire with the dataset in Databricks. To emphasize was you accomplished, try constructing some queries that combine the data from two tables originating in the different source databases to do something cool. *Hint, total revenue by state, or something.*
+Experiment to your heart's desire with the data in Databricks. For example, you could write some queries that combine the data from two tables each source database, such as caclulating total revenue by state.
 
 </details>
-
 <br>
 
 <details>
@@ -585,10 +575,9 @@ At this point, you can play around to your hearts desire with the dataset in Dat
 
 ## Cleanup
 
-When you're done with all of the resources created in this lab, **be sure to delete everything you provisioned** in an effort to mitigate the chances of being changed for anything. 
+**Delete everything you provisioned** in this lab to avoid further usage charges. If you want to keep your work but minimize uptime cost, pause your connectors.
 
-### Confluent Cloud
-During this lab you created the following resources, be sure to remove them when you're done with them.
+### Confluent Cloud resources to remove
 - Ksql Cluster
 - Delta Lake Sink Connector
 - Postgres CDC Source Connector
@@ -596,10 +585,10 @@ During this lab you created the following resources, be sure to remove them when
 - Kafka Cluster
 
 ### Terraform
-To remove everything provisioned by Terraform in either AWS, GCP, or Azure, use `terraform destroy`
+Use `terraform destroy` to clear out your cloud resources
 
 ### Databricks and Snowflake
-If you created instances of either Databricks and Snowflake solely for the purpose of this lab, remove them!
+If you created instances of either Databricks and Snowflake solely to run this lab, you can remove them.
 
 ***
 
