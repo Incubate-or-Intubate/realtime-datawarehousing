@@ -237,6 +237,8 @@ Launch the connector. Once both are fully provisioned, check for and troubleshoo
 
 If all is well, it's time to transform and join your data using Ksql. Ensure your topics are receiving records first.
 
+1. Enter each of the following queries in the 
+
 1. Use the following statements to consume `customers` records and flatten them. Note the `before` and `after` arrays representing CDC data.
     ```sql
         CREATE STREAM customers_structured (
@@ -425,7 +427,7 @@ If all is well, it's time to transform and join your data using Ksql. Ensure you
         EMIT CHANGES;
     ```
 
-1. You're now readt to create a Ksql stream that joins these tables together to create enriched order data in real time. 
+1. You're now ready to create a Ksql stream that joins these tables together to create enriched order data in real time. 
     ```sql
         CREATE STREAM orders_enriched WITH (
                 KAFKA_TOPIC='orders_enriched',
@@ -454,6 +456,8 @@ You're now ready to sink data to your chosen warehouse. Expand the appropriate s
 
 <details>
     <summary><b>Databricks</b></summary>
+    
+1. Review the [source documentation](https://docs.confluent.io/cloud/current/connectors/cc-databricks-delta-lake-sink/cc-databricks-delta-lake-sink.html) if you prefer.
 
 1. Locate your JDBC/ODBC details. Select your cluster. Expand the **Advanced** section and select the **JDBC/ODBC** tab. Paste the values for **Server Hostname** and **HTTP Path** to your `env.sh` file under `DATABRICKS_SERVER_HOSTNAME` and `DATABRICKS_HTTP_PATH`.
   
